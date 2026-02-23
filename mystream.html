@@ -8,6 +8,7 @@
 <title>Hwang's Private Stream</title>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
+
 <style>
 :root {
   --bg:#09090f; --surface:#111118; --surface2:#18181f; --surface3:#1f1f2a;
@@ -138,13 +139,7 @@ header{position:fixed;top:0;left:0;right:0;z-index:300;height:var(--hh);display:
 .dbtn{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:1px 3px;transition:color .15s;}
 .dbtn:hover{color:var(--accent);}
 
-/* EPG */
-.epgwrap{padding:0 14px 9px;}
-.epgstrip{background:var(--surface);border-radius:8px;border:1px solid var(--border);padding:8px 12px;display:flex;align-items:center;gap:8px;overflow-x:auto;}
-.epgi{flex-shrink:0;padding:5px 10px;border-radius:5px;background:var(--surface2);text-align:center;min-width:88px;}
-.epgt{font-size:10px;color:var(--accent);font-weight:700;}
-.epgs{font-size:11px;margin-top:1px;}
-.epgi.now{background:rgba(192,57,43,.12);border:1px solid rgba(192,57,43,.2);}
+
 
 /* HINT */
 .hint{margin:0 14px 11px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;padding:10px 13px;font-size:12px;color:var(--text2);line-height:1.8;}
@@ -235,6 +230,7 @@ select option{background:var(--surface2);}
   .logo strong{font-size:12px;}
 }
 
+
 /* PROXY BANNER */
 .proxy-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(192,57,43,.97);color:#fff;font-size:11px;padding:8px 14px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(10px);}
 .proxy-banner.warn{background:rgba(180,90,0,.97);}
@@ -277,6 +273,7 @@ body.light header{background:rgba(240,240,245,.97);}
   <button class="btn btn-p btn-sm" onclick="openM('addch')">＋ 추가</button>
   <button class="btn btn-g btn-sm" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
   <button class="btn btn-g btn-sm" id="themebtn" onclick="toggleTheme()" title="테마 전환">🌙</button>
+  <button class="btn btn-g btn-sm" id="syncbtn" onclick="openSyncModal()" title="JSON 백업/복원">💾 백업</button>
 </header>
 
 <div class="app" id="app">
@@ -317,10 +314,6 @@ body.light header{background:rgba(240,240,245,.97);}
             <div class="tbadge" id="tbadge"></div>
           </div>
         </div>
-      </div>
-
-      <div class="epgwrap" id="epgw" style="display:none">
-        <div class="epgstrip" id="epgs"></div>
       </div>
 
       <div class="rcwrap" id="rcw" style="display:none">
@@ -689,7 +682,7 @@ function resetPlayer(){
 }
 function stopPlayer(){
   resetPlayer();document.getElementById('pph').style.display='flex';
-  document.getElementById('pinfo').style.display='none';document.getElementById('epgw').style.display='none';
+  document.getElementById('pinfo').style.display='none';
 }
 function play(ch){
   if(isMV){addToMvSlot(ch);return;}
@@ -703,7 +696,7 @@ function play(ch){
   const tb=document.getElementById('tbadge');
   tb.textContent={youtube:'YouTube',m3u:'HLS',custom:'Custom'}[ch.type]||ch.type;tb.className='tbadge '+ch.type;
   if(ch.id&&ch.id!=='__preview__') addRec(ch.id);
-  updateFavBtn();renderSB();renderGrid();renderRecent();showEPG();
+  updateFavBtn();renderSB();renderGrid();renderRecent();
   if(window.innerWidth<=768) closeSB();
 }
 function playYT(vid){
@@ -964,17 +957,6 @@ function ytId(url){
   return null;
 }
 
-// ── EPG ──
-function showEPG(){
-  const shows=['뉴스','스포츠','영화','다큐','토크쇼','음악','드라마','예능'];
-  const now=new Date();let html='<div style="font-size:10px;color:var(--text2);white-space:nowrap;font-weight:700;flex-shrink:0">📅 편성 (샘플)</div>';
-  for(let i=-1;i<4;i++){
-    const t=new Date(now.getTime()+i*3600000);
-    const h=t.getHours().toString().padStart(2,'0'),m=Math.round(t.getMinutes()/30)*30;
-    html+=`<div class="epgi ${i===0?'now':''}"><div class="epgt">${h}:${m===0?'00':'30'}</div><div class="epgs">${shows[Math.floor(Math.random()*shows.length)]}</div></div>`;
-  }
-  document.getElementById('epgw').style.display='block';document.getElementById('epgs').innerHTML=html;
-}
 
 // ── 전체 소스 ──
 function renderAllSrc(){
@@ -1241,58 +1223,108 @@ function initDrag(){
   });
 }
 
-// ── HELPERS ──
-function sj(o){return JSON.stringify(o).replace(/'/g,"&#39;");}
-function toast(msg,t=''){
-  const el=document.createElement('div');el.className=`toast ${t}`;el.innerHTML=msg;document.body.appendChild(el);
-  setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .4s';setTimeout(()=>el.remove(),400);},2400);
+// ── JSON 백업 / 복원 ──
+function openSyncModal() {
+  document.getElementById('import-log').style.display = 'none';
+  openM('sync');
+  // 드래그앤드롭 초기화 (모달이 DOM에 렌더된 후)
+  const idz = document.getElementById('import-dz');
+  if(idz && !idz._dzinit) {
+    idz._dzinit = true;
+    idz.addEventListener('dragover', e => { e.preventDefault(); idz.classList.add('dzo'); });
+    idz.addEventListener('dragleave', () => idz.classList.remove('dzo'));
+    idz.addEventListener('drop', e => { e.preventDefault(); idz.classList.remove('dzo'); importJSON(e.dataTransfer.files[0]); });
+  }
 }
 
+function exportJSON() {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chs,
+    favs,
+    pubs
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mystream_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✅ JSON 파일로 저장됨', 's');
+}
+
+function importJSON(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data.chs)) { toast('❌ 올바른 백업 파일이 아닙니다', 'e'); return; }
+      if (!confirm(`채널 ${data.chs.length}개를 불러옵니다.\n현재 채널 목록이 덮어써집니다. 계속할까요?`)) return;
+      chs = data.chs;
+      if (Array.isArray(data.favs)) favs = data.favs;
+      if (Array.isArray(data.pubs)) { pubs = data.pubs; savePubs(); }
+      save(); renderAll();
+      const dt = data.exportedAt ? new Date(data.exportedAt).toLocaleString('ko-KR') : '알수없음';
+      document.getElementById('import-log').textContent = `✅ ${chs.length}개 채널 불러옴 (백업일시: ${dt})`;
+      document.getElementById('import-log').style.color = 'var(--live)';
+      toast(`✅ ${chs.length}개 채널 불러옴`, 's');
+    } catch(err) {
+      toast('❌ 파일 파싱 오류: ' + err.message, 'e');
+    }
+  };
+  r.readAsText(file);
+}
+
+// ── HELPERS ──
+function sj(o){ return JSON.stringify(o).replace(/'/g,"&#39;"); }
+
 // ── INIT ──
-document.getElementById('thint').textContent=HINTS['youtube'];
-if(userProxy) document.getElementById('proxyInput').value=userProxy;
 updateProxyBtn();
-updateProxyStatus();
 renderAll();
 </script>
 
-<!-- ═══ 프록시 설정 모달 ═══ -->
-<div class="overlay" id="m-proxy">
-  <div class="modal" style="max-width:500px">
+<!-- ═══ JSON 백업 / 복원 모달 ═══ -->
+<div class="overlay" id="m-sync">
+  <div class="modal" style="max-width:420px">
     <div class="mhead">
-      <div class="mtitle">⚙️ CORS 프록시 설정</div>
-      <button class="mclose" onclick="closeM('proxy')">✕</button>
+      <div class="mtitle">💾 백업 / 복원</div>
+      <button class="mclose" onclick="closeM('sync')">✕</button>
     </div>
 
-    <!-- 현재 상태 -->
-    <div id="proxy-status" style="display:flex;align-items:center;gap:8px;padding:10px 13px;border-radius:8px;margin-bottom:14px;font-size:12px;background:var(--surface2);border:1px solid var(--border2)">
-      <span id="proxy-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0"></span>
-      <span id="proxy-status-text" style="color:var(--text2)">프록시 미설정 — HTTP 스트림 재생 불가</span>
-    </div>
-
-    <!-- 입력 -->
-    <div class="fg">
-      <label>프록시 URL</label>
-      <div style="display:flex;gap:6px">
-        <input type="text" id="proxyInput" placeholder="https://my.leveler2.workers.dev" style="flex:1"/>
-        <button class="btn btn-g btn-sm" onclick="testProxy()" style="white-space:nowrap">🔍 테스트</button>
+    <!-- 내보내기 -->
+    <div style="margin-bottom:18px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📤 내보내기 (Export)</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--m3u)">
+        현재 채널 목록·즐겨찾기·공개소스를 <strong style="color:var(--text)">JSON 파일</strong>로 저장합니다.<br>
+        파일을 옮기면 다른 PC에서도 그대로 복원 가능합니다.
       </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:5px">끝에 슬래시(/) 없이 입력 · localStorage에 저장됨</div>
+      <button onclick="exportJSON()" class="btn btn-p" style="width:100%;justify-content:center">⬇ JSON 파일로 저장</button>
     </div>
 
-    <!-- 테스트 결과 -->
-    <div id="proxyTestResult" style="display:none;margin-bottom:12px;font-size:11px;padding:9px 12px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);line-height:1.7"></div>
+    <div style="border-top:1px solid var(--border);margin-bottom:18px"></div>
 
-    <!-- 버튼 -->
-    <div class="mfoot" style="justify-content:space-between">
-      <button class="btn btn-g btn-sm" onclick="clearProxy()" style="color:var(--accent2);border-color:rgba(192,57,43,.3)">🗑 프록시 삭제</button>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-g" onclick="closeM('proxy')">취소</button>
-        <button class="btn btn-p" onclick="saveProxy()">💾 저장</button>
+    <!-- 불러오기 -->
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📥 불러오기 (Import)</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
+        ⚠️ 불러오기 시 <strong style="color:var(--accent)">현재 목록을 덮어씁니다.</strong><br>
+        먼저 내보내기로 현재 상태를 백업하세요.
       </div>
+      <div class="dz" id="import-dz" onclick="document.getElementById('importfile').click()" style="margin-bottom:8px">
+        <div class="dz-icon">📂</div>
+        <div style="font-size:12px">JSON 파일을 클릭하거나 드래그하여 불러오기</div>
+        <div style="font-size:10px;opacity:.6;margin-top:3px">mystream_backup_*.json</div>
+      </div>
+      <input type="file" id="importfile" accept=".json" style="display:none" onchange="importJSON(this.files[0])">
+      <div id="import-log" style="font-size:11px;padding:7px 10px;display:none;border-radius:6px;background:var(--surface2)"></div>
     </div>
+
+    <div class="mfoot"><button class="btn btn-g" onclick="closeM('sync')">닫기</button></div>
   </div>
 </div>
+
 </div>
 </body>
 </html>
