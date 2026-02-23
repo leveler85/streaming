@@ -225,6 +225,12 @@ select option{background:var(--surface2);}
   .pacts{width:100%;}
   .logo strong{font-size:12px;}
 }
+
+/* PROXY BANNER */
+.proxy-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(192,57,43,.97);color:#fff;font-size:11px;padding:8px 14px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(10px);}
+.proxy-banner.warn{background:rgba(180,90,0,.97);}
+.proxy-banner.ok{background:rgba(30,130,60,.97);}
+.proxy-banner a{color:#fff;text-decoration:underline;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -239,6 +245,7 @@ select option{background:var(--surface2);}
   <button class="btn btn-g btn-sm" onclick="openM('allsrc')">📋 전체소스</button>
   <button class="btn btn-g btn-sm" onclick="openM('srcsearch')">🔍 소스검색</button>
   <button class="btn btn-p btn-sm" onclick="openM('addch')">＋ 추가</button>
+  <button class="btn btn-g btn-sm" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
 </header>
 
 <div class="app">
@@ -605,98 +612,146 @@ function playYT(vid){
   const origin=location.origin!=='null'?location.origin:'https://hps.local';
   el.innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(origin)}" style="width:100%;height:100%;border:none;display:block" title="YouTube player" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
 }
-// ── CORS 프록시 목록 (순서대로 자동 시도) ──
-const CORS_PROXIES=[
-  url=>url,                                              // 0: 직접 접속 (프록시 없음)
-  url=>`https://corsproxy.io/?${encodeURIComponent(url)}`,  // 1: corsproxy.io
-  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, // 2: allorigins
-  url=>`https://thingproxy.freeboard.io/fetch/${url}`,  // 3: thingproxy
-];
+// ── 프록시 설정 ──
+let userProxy = localStorage.getItem('hps_proxy') || '';
 
-function buildHlsWithProxy(proxyFn){
+function getProxyUrl(url) {
+  // 1) 이미 HTTPS면 프록시 불필요
+  if (url.startsWith('https://')) return url;
+  // 2) HTTP → 사용자 지정 Cloudflare Worker 프록시 사용
+  if (userProxy) return userProxy + '/?url=' + encodeURIComponent(url);
+  // 3) 프록시 미설정: 그대로 시도 (localhost 등에선 작동)
+  return url;
+}
+
+function saveProxy() {
+  const val = document.getElementById('proxyInput').value.trim().replace(/\/$/, '');
+  userProxy = val;
+  if (val) localStorage.setItem('hps_proxy', val);
+  else localStorage.removeItem('hps_proxy');
+  updateProxyBtn();
+  closeM('proxy');
+  toast(val ? '✅ 프록시 저장됨' : '프록시 초기화됨', 's');
+}
+function clearProxy() {
+  document.getElementById('proxyInput').value = '';
+  userProxy = '';
+  localStorage.removeItem('hps_proxy');
+  updateProxyBtn();
+  toast('프록시 초기화됨');
+}
+function updateProxyBtn() {
+  const btn = document.getElementById('proxybtn');
+  if (!btn) return;
+  btn.textContent = userProxy ? '⚙️ 프록시 ON' : '⚙️ 프록시';
+  btn.style.borderColor = userProxy ? 'rgba(46,204,113,.5)' : '';
+  btn.style.color = userProxy ? 'var(--live)' : '';
+}
+function openProxyModal() {
+  document.getElementById('proxyInput').value = userProxy;
+  openM('proxy');
+}
+async function testProxy() {
+  const val = document.getElementById('proxyInput').value.trim().replace(/\/$/, '');
+  const res = document.getElementById('proxyTestResult');
+  res.style.display = 'block';
+  res.style.borderColor = 'var(--border2)';
+  res.textContent = '🔄 테스트 중...';
+  if (!val) { res.textContent = '❌ 프록시 URL을 먼저 입력하세요.'; return; }
+  const testUrl = 'http://103.197.59.107:5002/gd03.m3u8?token=guoziyun&gid=gd03&channel=zhongying';
+  try {
+    const resp = await fetch(val + '/?url=' + encodeURIComponent(testUrl), { signal: AbortSignal.timeout(8000) });
+    if (resp.ok) {
+      res.style.borderColor = 'rgba(46,204,113,.4)';
+      res.textContent = '✅ 연결 성공! 프록시가 정상 동작합니다.';
+    } else {
+      res.style.borderColor = 'rgba(192,57,43,.4)';
+      res.textContent = `⚠️ 응답 코드 ${resp.status} — 프록시가 응답했지만 스트림 접근에 실패했습니다.`;
+    }
+  } catch (e) {
+    res.style.borderColor = 'rgba(192,57,43,.4)';
+    res.textContent = '❌ 연결 실패: ' + e.message;
+  }
+}
+
+function buildHls(proxyFn) {
+  const CustomLoader = (function() {
+    const Default = Hls.DefaultConfig.loader;
+    function L(c) { Default.call(this, c); }
+    L.prototype = Object.create(Default.prototype);
+    L.prototype.constructor = L;
+    L.prototype.load = function(ctx, cfg, cbs) {
+      ctx.url = proxyFn(ctx.url);
+      Default.prototype.load.call(this, ctx, cfg, cbs);
+    };
+    return L;
+  })();
   return new Hls({
-    enableWorker:true,
-    lowLatencyMode:true,
-    xhrSetup:function(xhr,url){
-      xhr.withCredentials=false;
-      // m3u8 manifest / ts 세그먼트 요청 모두 프록시 경유
-      // (직접 접속일 경우 proxyFn은 url 그대로 반환)
-    },
-    // pLoader: playlist loader 커스텀으로 프록시 URL 삽입
-    pLoader:(function(config){
-      const DefaultLoader=Hls.DefaultConfig.loader;
-      function PLoader(c){DefaultLoader.call(this,c);}
-      PLoader.prototype=Object.create(DefaultLoader.prototype);
-      PLoader.prototype.constructor=PLoader;
-      PLoader.prototype.load=function(ctx,config,callbacks){
-        ctx.url=proxyFn(ctx.url);
-        DefaultLoader.prototype.load.call(this,ctx,config,callbacks);
-      };
-      return PLoader;
-    })(),
-    // fLoader: fragment loader (ts 세그먼트)
-    fLoader:(function(config){
-      const DefaultLoader=Hls.DefaultConfig.loader;
-      function FLoader(c){DefaultLoader.call(this,c);}
-      FLoader.prototype=Object.create(DefaultLoader.prototype);
-      FLoader.prototype.constructor=FLoader;
-      FLoader.prototype.load=function(ctx,cfg,callbacks){
-        ctx.url=proxyFn(ctx.url);
-        DefaultLoader.prototype.load.call(this,ctx,cfg,callbacks);
-      };
-      return FLoader;
-    })(),
+    enableWorker: true,
+    lowLatencyMode: true,
+    xhrSetup: function(xhr) { xhr.withCredentials = false; },
+    pLoader: CustomLoader,
+    fLoader: CustomLoader,
   });
 }
 
-function playHLS(ch,proxyIdx){
-  if(proxyIdx===undefined) proxyIdx=0;
-  const v=document.getElementById('hlsv');
-  v.style.display='block';
+function playHLS(ch) {
+  const v = document.getElementById('hlsv');
+  const ep = document.getElementById('errp');
+  ep.style.display = 'none';
+  v.style.display = 'block';
 
-  // 상태 표시
-  const ep=document.getElementById('errp');
-  if(proxyIdx>0){
-    ep.style.display='flex';
-    ep.innerHTML=`<div style="font-size:22px">🔄</div><div style="font-size:11px;color:var(--text2)">프록시 ${proxyIdx}/${CORS_PROXIES.length-1} 시도 중…</div>`;
+  // HTTP 스트림인데 프록시 미설정 → 안내
+  if (ch.url.startsWith('http://') && !userProxy) {
+    v.style.display = 'none';
+    ep.style.display = 'flex';
+    ep.innerHTML = `
+      <div style="font-size:28px">⚠️</div>
+      <div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:5px;color:var(--accent)">프록시 설정 필요</div>
+        <div style="font-size:11px;color:var(--text2);max-width:320px;line-height:1.9">
+          이 스트림은 <strong style="color:var(--text)">HTTP</strong> 주소입니다.<br>
+          GitHub Pages(HTTPS)에서 HTTP 스트림을 재생하려면<br>
+          Cloudflare Worker 프록시 설정이 필요합니다.
+        </div>
+        <button onclick="openProxyModal()" style="margin-top:11px;padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:11px;font-family:inherit">
+          ⚙️ 프록시 설정하기
+        </button>
+        <a href="${ch.url}" target="_blank" style="display:inline-block;margin-top:8px;margin-left:6px;padding:7px 13px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px;text-decoration:none;font-size:11px">
+          🔗 새 창에서 열기
+        </a>
+      </div>`;
+    return;
   }
 
-  if(Hls.isSupported()){
-    if(curHls){try{curHls.destroy();}catch(e){}curHls=null;}
-    const proxyFn=CORS_PROXIES[proxyIdx];
-    curHls=buildHlsWithProxy(proxyFn);
+  if (Hls.isSupported()) {
+    if (curHls) { try { curHls.destroy(); } catch(e) {} curHls = null; }
+    curHls = buildHls(url => getProxyUrl(url));
     curHls.loadSource(ch.url);
     curHls.attachMedia(v);
-    curHls.on(Hls.Events.MANIFEST_PARSED,()=>{
-      ep.style.display='none';
-      v.play().catch(()=>{});
-    });
-    curHls.on(Hls.Events.ERROR,(ev,d)=>{
-      if(d.fatal){
-        curHls.destroy();curHls=null;
-        const next=proxyIdx+1;
-        if(next<CORS_PROXIES.length){
-          // 다음 프록시로 자동 재시도
-          playHLS(ch,next);
+    curHls.on(Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); });
+    curHls.on(Hls.Events.ERROR, (ev, d) => {
+      if (d.fatal) {
+        curHls.destroy(); curHls = null;
+        v.style.display = 'none';
+        let msg = '스트림을 불러올 수 없습니다.<br>';
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          msg += userProxy
+            ? '프록시가 응답하지 않거나 스트림 서버가 차단됐습니다.'
+            : 'CORS 정책으로 차단됐습니다. 프록시 설정을 확인하세요.';
+        } else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          msg += '지원하지 않는 코덱이거나 스트림이 손상됐습니다.';
         } else {
-          v.style.display='none';
-          let msg='모든 경로로 스트림 접속 실패.<br>';
-          if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
-            msg+='서버가 모든 외부 접근을 차단하거나 URL이 만료됐습니다.';
-          } else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
-            msg+='지원하지 않는 코덱이거나 스트림이 손상됐습니다.';
-          } else {
-            msg+='알 수 없는 오류가 발생했습니다.';
-          }
-          showErr(ch,msg);
+          msg += '알 수 없는 오류.';
         }
+        showErr(ch, msg);
       }
     });
-  } else if(v.canPlayType('application/vnd.apple.mpegurl')){
-    // Safari: 네이티브 HLS (프록시 불필요)
-    v.src=ch.url;v.play().catch(()=>{});
+  } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+    v.src = getProxyUrl(ch.url);
+    v.play().catch(() => {});
   } else {
-    showErr(ch,'이 브라우저는 HLS를 지원하지 않습니다.');
+    showErr(ch, '이 브라우저는 HLS를 지원하지 않습니다.');
   }
 }
 function showErr(ch,msg){
@@ -750,7 +805,7 @@ function loadMvCell(idx,ch,cellEl){
   else if(ch.type==='m3u'){m=`<video id="mv${idx}" style="width:100%;height:100%;object-fit:contain" muted playsinline controls></video>`;}
   else{m=`<iframe src="${ch.url}" style="width:100%;height:100%;border:none" allowfullscreen allow="autoplay;encrypted-media"></iframe>`;}
   cell.innerHTML=m+`<div class="mvlabel"><span>${ch.name}</span><button onclick="clearMvCell(${idx})" style="background:none;border:none;color:#fff;cursor:pointer;font-size:10px">✕</button></div>`;
-  if(ch.type==='m3u'){const v=document.getElementById(`mv${idx}`);if(v&&Hls.isSupported()){const h=buildHlsWithProxy(CORS_PROXIES[0]);h.loadSource(ch.url);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));h.on(Hls.Events.ERROR,(ev,d)=>{if(d.fatal&&d.type===Hls.ErrorTypes.NETWORK_ERROR){h.destroy();const h2=buildHlsWithProxy(CORS_PROXIES[1]);h2.loadSource(ch.url);h2.attachMedia(v);h2.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));}});}}
+  if(ch.type==='m3u'){const v=document.getElementById(`mv${idx}`);if(v&&Hls.isSupported()){const h=buildHls(url=>getProxyUrl(url));h.loadSource(ch.url);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));}}
 }
 function clearMvCell(idx){if(!mvSlots[idx]) return;mvSlots[idx].ch=null;mvSlots[idx].el.innerHTML=`<div class="mvempty"><span>⬜</span><span>비어있음</span></div>`;}
 function stopMV(){
@@ -929,7 +984,39 @@ function toast(msg,t=''){
 
 // ── INIT ──
 document.getElementById('thint').textContent=HINTS['youtube'];
+if(userProxy) document.getElementById('proxyInput').value=userProxy;
+updateProxyBtn();
 renderAll();
 </script>
+
+<!-- ═══ 프록시 설정 모달 ═══ -->
+<div class="overlay" id="m-proxy">
+  <div class="modal" style="max-width:520px">
+    <div class="mhead"><div class="mtitle">⚙️ HLS 프록시 설정</div><button class="mclose" onclick="closeM('proxy')">✕</button></div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:14px">
+      HTTP 스트림을 <strong style="color:var(--text)">HTTPS GitHub Pages</strong>에서 재생하려면 CORS/Mixed Content 우회 프록시가 필요합니다.<br>
+      Cloudflare Workers 무료 계정으로 직접 배포하면 가장 안정적입니다.
+    </div>
+    <div class="fg">
+      <label>프록시 URL <span style="color:var(--live);font-weight:700">*</span></label>
+      <input type="text" id="proxyInput" placeholder="https://your-worker.workers.dev" />
+      <div style="font-size:10px;color:var(--text2);margin-top:4px">예: https://myproxy.yourname.workers.dev &nbsp;|&nbsp; 뒤에 슬래시(/) 없이 입력</div>
+    </div>
+    <div style="background:var(--surface2);border-radius:8px;padding:11px 13px;font-size:11px;line-height:2;border:1px solid var(--border2);margin-bottom:12px">
+      <div style="font-weight:700;color:var(--text);margin-bottom:4px">🚀 Cloudflare Worker 5분 배포 방법</div>
+      <div>1. <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--m3u)">workers.cloudflare.com</a> 접속 → 무료 계정 생성</div>
+      <div>2. <strong>Create Worker</strong> 클릭 → 코드 전체 삭제</div>
+      <div>3. 제공된 <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">cf-worker-proxy.js</code> 내용을 붙여넣기</div>
+      <div>4. <strong>Save and Deploy</strong> → 생성된 URL을 위에 입력</div>
+    </div>
+    <div id="proxyTestResult" style="display:none;margin-bottom:10px;font-size:11px;padding:8px 11px;border-radius:7px;background:var(--surface2)"></div>
+    <div class="mfoot">
+      <button class="btn btn-g" onclick="testProxy()">🔍 연결 테스트</button>
+      <button class="btn btn-g" onclick="clearProxy()">초기화</button>
+      <button class="btn btn-p" onclick="saveProxy()">저장</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
