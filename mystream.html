@@ -232,7 +232,8 @@ select option{background:var(--surface2);}
 
 
 /* PROXY BANNER */
-.proxy-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(192,57,43,.97);color:#fff;font-size:11px;padding:8px 14px;display:flex;align-items:center;gap:8px;backdrop-filter:blur(10px);}
+.proxy-banner{display:none;position:fixed;bottom:0;left:0;right:0;z-index:500;background:rgba(192,57,43,.97);color:#fff;font-size:11px;padding:8px 14px;align-items:center;gap:8px;backdrop-filter:blur(10px);}
+.proxy-banner.show{display:flex;}
 .proxy-banner.warn{background:rgba(180,90,0,.97);}
 .proxy-banner.ok{background:rgba(30,130,60,.97);}
 .proxy-banner a{color:#fff;text-decoration:underline;cursor:pointer;}
@@ -1364,6 +1365,5 @@ renderAll();
   </div>
 </div>
 
-</div>
 </body>
 </html>

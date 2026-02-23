@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "exportedAt": "2026-02-23T16:46:59.666Z",
+  "chs": [
+    {
+      "id": 1771865036884,
+      "name": "블룸버그",
+      "url": "https://youtu.be/iEpJwprxDdk",
+      "type": "youtube",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865046496,
+      "name": "스카이뉴스",
+      "url": "https://youtu.be/YDvsBbKfLPA",
+      "type": "youtube",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865056084,
+      "name": "유로뉴스",
+      "url": "https://youtu.be/pykpO5kQJ98",
+      "type": "youtube",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865064275,
+      "name": "CNBC",
+      "url": "https://youtu.be/9NyxcX3rhQs",
+      "type": "youtube",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865074508,
+      "name": "NHK",
+      "url": "http://103.197.59.107:5002/gd01.m3u8?token=guoziyun&gid=gd01&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865085892,
+      "name": "니폰 TV",
+      "url": "http://103.197.59.107:5002/gd03.m3u8?token=guoziyun&gid=gd03&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865094613,
+      "name": "TBS",
+      "url": "http://103.197.59.107:5002/gd04.m3u8?token=guoziyun&gid=gd04&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865104779,
+      "name": "후지TV",
+      "url": "http://103.197.59.107:5002/gd05.m3u8?token=guoziyun&gid=gd05&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865116075,
+      "name": "TV 아사히",
+      "url": "http://103.197.59.107:5002/gd06.m3u8?token=guoziyun&gid=gd06&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    },
+    {
+      "id": 1771865125254,
+      "name": "TV 도쿄",
+      "url": "http://103.197.59.107:5002/gd07.m3u8?token=guoziyun&gid=gd07&channel=zhongying",
+      "type": "m3u",
+      "cat": "",
+      "added": "2026. 2. 24."
+    }
+  ],
+  "favs": [],
+  "pubs": [
+    {
+      "id": "yt1",
+      "name": "NASA TV Live",
+      "url": "https://www.youtube.com/watch?v=21X5lGlDOfg",
+      "type": "youtube",
+      "badge": "🚀",
+      "cat": "과학",
+      "desc": "NASA 공식 YouTube 라이브"
+    },
+    {
+      "id": "yt2",
+      "name": "Al Jazeera English",
+      "url": "https://www.youtube.com/watch?v=F-PDSKy4R0I",
+      "type": "youtube",
+      "badge": "🌍",
+      "cat": "뉴스",
+      "desc": "알자지라 영문 라이브"
+    },
+    {
+      "id": "yt3",
+      "name": "DW News",
+      "url": "https://www.youtube.com/watch?v=zCkiqVbxN20",
+      "type": "youtube",
+      "badge": "🇩🇪",
+      "cat": "뉴스",
+      "desc": "Deutsche Welle 영문 라이브"
+    },
+    {
+      "id": "yt4",
+      "name": "NHK World",
+      "url": "https://www.youtube.com/watch?v=coYw-eVU0Ks",
+      "type": "youtube",
+      "badge": "🇯🇵",
+      "cat": "뉴스",
+      "desc": "NHK 국제방송 라이브"
+    },
+    {
+      "id": "yt5",
+      "name": "Euronews",
+      "url": "https://www.youtube.com/watch?v=KovINkxHzYE",
+      "type": "youtube",
+      "badge": "🇪🇺",
+      "cat": "뉴스",
+      "desc": "유로뉴스 영문 라이브"
+    },
+    {
+      "id": "yt6",
+      "name": "France 24 English",
+      "url": "https://www.youtube.com/watch?v=h3MuIUNCCzI",
+      "type": "youtube",
+      "badge": "🇫🇷",
+      "cat": "뉴스",
+      "desc": "프랑스24 영문 라이브"
+    },
+    {
+      "id": "yt7",
+      "name": "Bloomberg TV",
+      "url": "https://www.youtube.com/watch?v=dp8PhLsUcFE",
+      "type": "youtube",
+      "badge": "💹",
+      "cat": "경제",
+      "desc": "블룸버그 경제 라이브"
+    },
+    {
+      "id": "yt8",
+      "name": "ABC News Australia",
+      "url": "https://www.youtube.com/watch?v=vOTiJkg1voo",
+      "type": "youtube",
+      "badge": "🦘",
+      "cat": "뉴스",
+      "desc": "호주 ABC 뉴스 라이브"
+    },
+    {
+      "id": "yt9",
+      "name": "CGTN",
+      "url": "https://www.youtube.com/watch?v=FBiMEqpN83U",
+      "type": "youtube",
+      "badge": "🇨🇳",
+      "cat": "뉴스",
+      "desc": "중국 CGTN 영문 라이브"
+    },
+    {
+      "id": "yt10",
+      "name": "TRT World",
+      "url": "https://www.youtube.com/watch?v=QkjEI4MKBQA",
+      "type": "youtube",
+      "badge": "🇹🇷",
+      "cat": "뉴스",
+      "desc": "터키 TRT World 라이브"
+    },
+    {
+      "id": "h1",
+      "name": "Big Buck Bunny (테스트)",
+      "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "type": "m3u",
+      "badge": "🐰",
+      "cat": "테스트",
+      "desc": "Mux 공개 HLS — 안정적인 테스트용"
+    },
+    {
+      "id": "h2",
+      "name": "Apple HLS Sample",
+      "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8",
+      "type": "m3u",
+      "badge": "🍎",
+      "cat": "테스트",
+      "desc": "Apple 공식 HLS 샘플"
+    },
+    {
+      "id": "h3",
+      "name": "NASA TV HLS",
+      "url": "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8",
+      "type": "m3u",
+      "badge": "🚀",
+      "cat": "뉴스",
+      "desc": "NASA TV HLS 라이브"
+    },
+    {
+      "id": "h4",
+      "name": "Al Jazeera HLS",
+      "url": "https://live-hls-web-aje.getaj.net/AJE/01.m3u8",
+      "type": "m3u",
+      "badge": "🌍",
+      "cat": "뉴스",
+      "desc": "Al Jazeera HLS 직접 재생"
+    },
+    {
+      "id": "h5",
+      "name": "DW News HLS",
+      "url": "https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8",
+      "type": "m3u",
+      "badge": "🇩🇪",
+      "cat": "뉴스",
+      "desc": "Deutsche Welle HLS"
+    },
+    {
+      "id": "h6",
+      "name": "France 24 HLS",
+      "url": "https://live.france24.com/hls/live/2037844/F24_EN_HI_HLS/master.m3u8",
+      "type": "m3u",
+      "badge": "🇫🇷",
+      "cat": "뉴스",
+      "desc": "France 24 HLS"
+    },
+    {
+      "id": "h7",
+      "name": "Euronews HLS",
+      "url": "https://euronews-euronews-ww-en-egress.rakuten.nv.akamaized.net/hls/live/2058930/euronewswwen/index.m3u8",
+      "type": "m3u",
+      "badge": "🇪🇺",
+      "cat": "뉴스",
+      "desc": "Euronews HLS"
+    },
+    {
+      "id": "h8",
+      "name": "Akamai Live Test",
+      "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+      "type": "m3u",
+      "badge": "📡",
+      "cat": "테스트",
+      "desc": "Akamai 공개 HLS 테스트"
+    }
+  ]
+}
