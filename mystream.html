@@ -605,31 +605,95 @@ function playYT(vid){
   const origin=location.origin!=='null'?location.origin:'https://hps.local';
   el.innerHTML=`<iframe src="https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&rel=0&enablejsapi=1&origin=${encodeURIComponent(origin)}" style="width:100%;height:100%;border:none;display:block" title="YouTube player" allowfullscreen allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
 }
-function playHLS(ch){
+// ── CORS 프록시 목록 (순서대로 자동 시도) ──
+const CORS_PROXIES=[
+  url=>url,                                              // 0: 직접 접속 (프록시 없음)
+  url=>`https://corsproxy.io/?${encodeURIComponent(url)}`,  // 1: corsproxy.io
+  url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, // 2: allorigins
+  url=>`https://thingproxy.freeboard.io/fetch/${url}`,  // 3: thingproxy
+];
+
+function buildHlsWithProxy(proxyFn){
+  return new Hls({
+    enableWorker:true,
+    lowLatencyMode:true,
+    xhrSetup:function(xhr,url){
+      xhr.withCredentials=false;
+      // m3u8 manifest / ts 세그먼트 요청 모두 프록시 경유
+      // (직접 접속일 경우 proxyFn은 url 그대로 반환)
+    },
+    // pLoader: playlist loader 커스텀으로 프록시 URL 삽입
+    pLoader:(function(config){
+      const DefaultLoader=Hls.DefaultConfig.loader;
+      function PLoader(c){DefaultLoader.call(this,c);}
+      PLoader.prototype=Object.create(DefaultLoader.prototype);
+      PLoader.prototype.constructor=PLoader;
+      PLoader.prototype.load=function(ctx,config,callbacks){
+        ctx.url=proxyFn(ctx.url);
+        DefaultLoader.prototype.load.call(this,ctx,config,callbacks);
+      };
+      return PLoader;
+    })(),
+    // fLoader: fragment loader (ts 세그먼트)
+    fLoader:(function(config){
+      const DefaultLoader=Hls.DefaultConfig.loader;
+      function FLoader(c){DefaultLoader.call(this,c);}
+      FLoader.prototype=Object.create(DefaultLoader.prototype);
+      FLoader.prototype.constructor=FLoader;
+      FLoader.prototype.load=function(ctx,cfg,callbacks){
+        ctx.url=proxyFn(ctx.url);
+        DefaultLoader.prototype.load.call(this,ctx,cfg,callbacks);
+      };
+      return FLoader;
+    })(),
+  });
+}
+
+function playHLS(ch,proxyIdx){
+  if(proxyIdx===undefined) proxyIdx=0;
   const v=document.getElementById('hlsv');
   v.style.display='block';
+
+  // 상태 표시
+  const ep=document.getElementById('errp');
+  if(proxyIdx>0){
+    ep.style.display='flex';
+    ep.innerHTML=`<div style="font-size:22px">🔄</div><div style="font-size:11px;color:var(--text2)">프록시 ${proxyIdx}/${CORS_PROXIES.length-1} 시도 중…</div>`;
+  }
+
   if(Hls.isSupported()){
-    curHls=new Hls({
-      enableWorker:true,
-      lowLatencyMode:true,
-      xhrSetup:function(xhr,url){xhr.withCredentials=false;}
-    });
+    if(curHls){try{curHls.destroy();}catch(e){}curHls=null;}
+    const proxyFn=CORS_PROXIES[proxyIdx];
+    curHls=buildHlsWithProxy(proxyFn);
     curHls.loadSource(ch.url);
     curHls.attachMedia(v);
-    curHls.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));
+    curHls.on(Hls.Events.MANIFEST_PARSED,()=>{
+      ep.style.display='none';
+      v.play().catch(()=>{});
+    });
     curHls.on(Hls.Events.ERROR,(ev,d)=>{
       if(d.fatal){
-        v.style.display='none';
-        let msg='스트림을 불러올 수 없습니다.';
-        if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
-          msg='CORS 정책으로 차단됐거나 URL이 만료됐습니다.<br>아래 버튼으로 직접 열거나 CORS 해제 확장 프로그램을 사용해보세요.';
-        } else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
-          msg='미디어 오류: 지원하지 않는 코덱이거나 스트림이 끊겼습니다.';
+        curHls.destroy();curHls=null;
+        const next=proxyIdx+1;
+        if(next<CORS_PROXIES.length){
+          // 다음 프록시로 자동 재시도
+          playHLS(ch,next);
+        } else {
+          v.style.display='none';
+          let msg='모든 경로로 스트림 접속 실패.<br>';
+          if(d.type===Hls.ErrorTypes.NETWORK_ERROR){
+            msg+='서버가 모든 외부 접근을 차단하거나 URL이 만료됐습니다.';
+          } else if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
+            msg+='지원하지 않는 코덱이거나 스트림이 손상됐습니다.';
+          } else {
+            msg+='알 수 없는 오류가 발생했습니다.';
+          }
+          showErr(ch,msg);
         }
-        showErr(ch,msg);
       }
     });
   } else if(v.canPlayType('application/vnd.apple.mpegurl')){
+    // Safari: 네이티브 HLS (프록시 불필요)
     v.src=ch.url;v.play().catch(()=>{});
   } else {
     showErr(ch,'이 브라우저는 HLS를 지원하지 않습니다.');
@@ -686,7 +750,7 @@ function loadMvCell(idx,ch,cellEl){
   else if(ch.type==='m3u'){m=`<video id="mv${idx}" style="width:100%;height:100%;object-fit:contain" muted playsinline controls></video>`;}
   else{m=`<iframe src="${ch.url}" style="width:100%;height:100%;border:none" allowfullscreen allow="autoplay;encrypted-media"></iframe>`;}
   cell.innerHTML=m+`<div class="mvlabel"><span>${ch.name}</span><button onclick="clearMvCell(${idx})" style="background:none;border:none;color:#fff;cursor:pointer;font-size:10px">✕</button></div>`;
-  if(ch.type==='m3u'){const v=document.getElementById(`mv${idx}`);if(v&&Hls.isSupported()){const h=new Hls({lowLatencyMode:true});h.loadSource(ch.url);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));}}
+  if(ch.type==='m3u'){const v=document.getElementById(`mv${idx}`);if(v&&Hls.isSupported()){const h=buildHlsWithProxy(CORS_PROXIES[0]);h.loadSource(ch.url);h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));h.on(Hls.Events.ERROR,(ev,d)=>{if(d.fatal&&d.type===Hls.ErrorTypes.NETWORK_ERROR){h.destroy();const h2=buildHlsWithProxy(CORS_PROXIES[1]);h2.loadSource(ch.url);h2.attachMedia(v);h2.on(Hls.Events.MANIFEST_PARSED,()=>v.play().catch(()=>{}));}});}}
 }
 function clearMvCell(idx){if(!mvSlots[idx]) return;mvSlots[idx].ch=null;mvSlots[idx].el.innerHTML=`<div class="mvempty"><span>⬜</span><span>비어있음</span></div>`;}
 function stopMV(){
