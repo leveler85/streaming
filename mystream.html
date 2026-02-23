@@ -403,6 +403,45 @@ body.light header{background:rgba(240,240,245,.97);}
   </div>
 </div>
 
+<!-- ═══ 프록시 설정 모달 ═══ -->
+<div class="overlay" id="m-proxy">
+  <div class="modal" style="max-width:460px">
+    <div class="mhead">
+      <div class="mtitle">⚙️ HLS 프록시 설정</div>
+      <button class="mclose" onclick="closeM('proxy')">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.9;margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--m3u)">
+      <strong style="color:var(--text)">HTTP(비암호화) HLS 스트림</strong>은 브라우저 보안 정책으로 직접 재생이 불가합니다.<br>
+      Cloudflare Workers 등으로 만든 CORS 프록시 URL을 입력하면 우회 재생이 가능합니다.
+    </div>
+
+    <div class="sync-status" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:12px;background:var(--surface2);border:1px solid var(--border2);margin-bottom:12px;">
+      <div id="proxy-status-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--accent)"></div>
+      <div id="proxy-status-text" style="color:var(--text2)">⚠️ 미설정 — HTTP 스트림 재생 불가</div>
+    </div>
+
+    <div class="fg">
+      <label>프록시 URL</label>
+      <input type="text" id="proxyInput" placeholder="https://your-worker.workers.dev">
+    </div>
+
+    <div style="font-size:10px;color:var(--text3);line-height:1.8;margin-bottom:12px;padding:8px 10px;background:var(--surface2);border-radius:7px;">
+      Worker는 <code style="color:var(--m3u)">/?url=</code> 파라미터로 대상 URL을 받아 프록시해야 합니다.<br>
+      예: <code style="color:var(--text2)">https://proxy.example.workers.dev/?url=http://stream...</code>
+    </div>
+
+    <div id="proxyTestResult" style="display:none;font-size:11px;padding:9px 12px;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);margin-bottom:12px;line-height:1.7"></div>
+
+    <div class="mfoot" style="justify-content:space-between">
+      <button class="btn btn-g btn-sm" onclick="clearProxy()">🗑 프록시 삭제</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g btn-sm" onclick="testProxy()">🔌 연결 테스트</button>
+        <button class="btn btn-p" onclick="saveProxy()">💾 저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ 멀티뷰 모달 ═══ -->
 <div class="overlay" id="m-mv">
   <div class="modal">
