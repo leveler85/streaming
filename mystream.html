@@ -40,8 +40,14 @@ header{position:fixed;top:0;left:0;right:0;z-index:300;height:var(--hh);display:
 /* LAYOUT */
 .app{display:flex;height:100vh;padding-top:var(--hh);}
 
+/* RESIZER */
+.resizer{width:5px;flex-shrink:0;background:transparent;cursor:col-resize;position:relative;z-index:10;transition:background .15s;}
+.resizer:hover,.resizer.dragging{background:var(--accent);}
+.resizer::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:1px;height:40px;background:var(--border2);border-radius:2px;transition:background .15s;}
+.resizer:hover::after,.resizer.dragging::after{background:var(--accent);}
+
 /* SIDEBAR */
-.sidebar{width:var(--sw);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100%;overflow:hidden;transition:transform .28s cubic-bezier(.4,0,.2,1);}
+.sidebar{width:var(--sw);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100%;overflow:hidden;transition:transform .28s cubic-bezier(.4,0,.2,1);min-width:160px;max-width:520px;}
 .sb-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
 .stab{flex:1;padding:10px 4px;text-align:center;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none;}
 .stab.on{color:var(--accent);border-bottom-color:var(--accent);}
@@ -208,16 +214,19 @@ select option{background:var(--surface2);}
 @media(max-width:768px){
   :root{--hh:50px;}
   .mobmenu{display:block;}
-  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:260;transform:translateX(-100%);padding-top:var(--hh);}
+  .resizer{display:none;}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:260;transform:translateX(-100%);padding-top:var(--hh);width:80vw!important;min-width:unset!important;max-width:unset!important;transition:transform .28s cubic-bezier(.4,0,.2,1);}
   .sidebar.open{transform:translateX(0);}
   .sbback.open{display:block;}
-  .main{width:100%;}
+  .main{width:100%;min-width:0;}
   .pw{padding:10px 11px 7px;}
   .cgrid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;padding:0 11px 16px;}
   .sbar{margin:0 11px 10px;}
   .rcwrap,.ghdr,.epgwrap,.hint{padding-left:11px;padding-right:11px;}
-  .modal{padding:16px;max-height:88vh;}
+  .modal{padding:16px;max-height:88vh;width:calc(100vw - 28px)!important;max-width:100%!important;}
   .ptitle{font-size:13px;}
+  .pinfo{flex-wrap:wrap;}
+  .pacts{flex-wrap:wrap;}
 }
 @media(max-width:390px){
   .cgrid{grid-template-columns:1fr 1fr;}
@@ -248,7 +257,7 @@ select option{background:var(--surface2);}
   <button class="btn btn-g btn-sm" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
 </header>
 
-<div class="app">
+<div class="app" id="app">
   <aside class="sidebar" id="sb">
     <div class="sb-tabs">
       <div class="stab on" onclick="switchTab('my')">📡 내채널</div>
@@ -262,7 +271,7 @@ select option{background:var(--surface2);}
       <div class="ch-list" id="sbfav"></div>
     </div>
   </aside>
-
+  <div class="resizer" id="resizer"></div>
   <main class="main">
     <div class="mscroll" id="ms">
       <div class="pw">
@@ -396,6 +405,73 @@ select option{background:var(--surface2);}
 </div>
 
 <script>
+// ── RESIZER ──
+(function(){
+  const MIN_W = 160, MAX_W = 520;
+  const SB_KEY = 'hps_sbw';
+  const sb = document.getElementById('sb');
+  const resizer = document.getElementById('resizer');
+  if(!sb || !resizer) return;
+
+  // 저장된 너비 복원
+  const saved = parseInt(localStorage.getItem(SB_KEY));
+  if(saved && saved >= MIN_W && saved <= MAX_W){
+    sb.style.width = saved + 'px';
+    document.documentElement.style.setProperty('--sw', saved + 'px');
+  }
+
+  let startX, startW, dragging = false;
+
+  resizer.addEventListener('mousedown', e => {
+    if(window.innerWidth <= 768) return;
+    dragging = true;
+    startX = e.clientX;
+    startW = sb.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  // 터치 지원
+  resizer.addEventListener('touchstart', e => {
+    if(window.innerWidth <= 768) return;
+    dragging = true;
+    startX = e.touches[0].clientX;
+    startW = sb.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    e.preventDefault();
+  }, {passive:false});
+
+  document.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    const dx = e.clientX - startX;
+    const newW = Math.min(MAX_W, Math.max(MIN_W, startW + dx));
+    sb.style.width = newW + 'px';
+    document.documentElement.style.setProperty('--sw', newW + 'px');
+  });
+
+  document.addEventListener('touchmove', e => {
+    if(!dragging) return;
+    const dx = e.touches[0].clientX - startX;
+    const newW = Math.min(MAX_W, Math.max(MIN_W, startW + dx));
+    sb.style.width = newW + 'px';
+    document.documentElement.style.setProperty('--sw', newW + 'px');
+  }, {passive:false});
+
+  function stopDrag(){
+    if(!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    // 현재 너비 저장
+    localStorage.setItem(SB_KEY, Math.round(sb.getBoundingClientRect().width));
+  }
+  document.addEventListener('mouseup', stopDrag);
+  document.addEventListener('touchend', stopDrag);
+})();
+
 // ── STATE ──
 let chs   = JSON.parse(localStorage.getItem('hps_chs')    || '[]');
 let favs  = JSON.parse(localStorage.getItem('hps_favs')   || '[]');
