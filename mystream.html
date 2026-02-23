@@ -5,7 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Hwang's Private Stream</title>
+<script>
+// ── 버전 캐시 강제 무효화 ──
+// 이 값을 바꿀 때마다 모바일 포함 모든 브라우저가 강제 새로고침됩니다
+const APP_VERSION = '20260224-001';
+const storedVer = sessionStorage.getItem('hps_ver');
+if (storedVer !== APP_VERSION) {
+  sessionStorage.setItem('hps_ver', APP_VERSION);
+  // 캐시 완전 무시하고 서버에서 재요청
+  if (storedVer !== null) {
+    // 이미 한 번 방문한 적 있는데 버전이 다름 → 강제 새로고침
+    location.reload(true);
+  }
+}
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
 
@@ -198,9 +215,20 @@ select option{background:var(--surface2);}
 .toast.s{border-color:rgba(46,204,113,.35);}
 .toast.e{border-color:rgba(192,57,43,.4);}
 
-/* MOBILE */
-.sbback{display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.6);}
-.mobmenu{display:none;background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px;flex-shrink:0;}
+/* MOBILE DROPDOWN MENU */
+.pc-only{display:inline-flex;}
+.mob-only{display:none;}
+.mob-menu-wrap{position:relative;flex-shrink:0;}
+.mob-dropdown{display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--border2);border-radius:10px;overflow:hidden;z-index:350;min-width:150px;box-shadow:0 8px 28px rgba(0,0,0,.6);animation:slideUp .15s ease;}
+.mob-dropdown.on{display:flex;flex-direction:column;}
+.mob-dropdown button{background:none;border:none;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:13px;padding:11px 16px;cursor:pointer;text-align:left;transition:background .12s;border-bottom:1px solid var(--border);}
+.mob-dropdown button:last-child{border-bottom:none;}
+.mob-dropdown button:hover{background:var(--surface2);}
+
+@media(max-width:768px){
+  .pc-only{display:none!important;}
+  .mob-only{display:flex;}
+}
 
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -269,12 +297,26 @@ body.light header{background:rgba(240,240,245,.97);}
   <div class="logo" onclick="goHome()" style="cursor:pointer" title="홈으로">Hwang's<strong>PRIVATE STREAM</strong></div>
   <div class="h-space"></div>
   <div class="live-dot"></div>
-  <button class="btn btn-g btn-sm" onclick="openM('allsrc')">📋 전체소스</button>
-  <button class="btn btn-g btn-sm" onclick="openM('srcsearch')">🔍 소스검색</button>
+
+  <!-- PC: 모든 버튼 표시 -->
+  <button class="btn btn-g btn-sm pc-only" onclick="openM('allsrc')">📋 전체소스</button>
+  <button class="btn btn-g btn-sm pc-only" onclick="openM('srcsearch')">🔍 소스검색</button>
   <button class="btn btn-p btn-sm" onclick="openM('addch')">＋ 추가</button>
-  <button class="btn btn-g btn-sm" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
-  <button class="btn btn-g btn-sm" id="themebtn" onclick="toggleTheme()" title="테마 전환">🌙</button>
-  <button class="btn btn-g btn-sm" id="syncbtn" onclick="openSyncModal()" title="JSON 백업/복원">💾 백업</button>
+  <button class="btn btn-g btn-sm pc-only" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
+  <button class="btn btn-g btn-sm pc-only" id="themebtn" onclick="toggleTheme()" title="테마 전환">🌙</button>
+  <button class="btn btn-g btn-sm pc-only" id="syncbtn" onclick="openSyncModal()" title="JSON 백업/복원">💾 백업</button>
+
+  <!-- 모바일: ⋮ 드롭다운 -->
+  <div class="mob-menu-wrap mob-only" id="mobMenuWrap">
+    <button class="btn btn-g btn-sm" onclick="toggleMobMenu()" id="mobMenuBtn">⋮</button>
+    <div class="mob-dropdown" id="mobDropdown">
+      <button onclick="openM('allsrc');closeMobMenu()">📋 전체소스</button>
+      <button onclick="openM('srcsearch');closeMobMenu()">🔍 소스검색</button>
+      <button onclick="openProxyModal();closeMobMenu()" id="mob-proxybtn">⚙️ 프록시</button>
+      <button onclick="toggleTheme();closeMobMenu()" id="mob-themebtn">🌙 테마</button>
+      <button onclick="openSyncModal();closeMobMenu()" id="mob-syncbtn">💾 백업</button>
+    </div>
+  </div>
 </header>
 
 <div class="app" id="app">
@@ -560,6 +602,19 @@ function defPubs(){return[
 
 function savePubs(){localStorage.setItem('hps_pubs',JSON.stringify(pubs));}
 
+// ── 모바일 드롭다운 메뉴 ──
+function toggleMobMenu(){
+  document.getElementById('mobDropdown').classList.toggle('on');
+}
+function closeMobMenu(){
+  const d = document.getElementById('mobDropdown');
+  if(d) d.classList.remove('on');
+}
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('mobMenuWrap');
+  if(wrap && !wrap.contains(e.target)) closeMobMenu();
+});
+
 // ── MOBILE SIDEBAR ──
 function openSB(){document.getElementById('sb').classList.add('open');document.getElementById('sbb').classList.add('open');}
 function closeSB(){document.getElementById('sb').classList.remove('open');document.getElementById('sbb').classList.remove('open');}
@@ -788,17 +843,17 @@ function clearProxy() {
 
 // 헤더 버튼 상태 업데이트
 function updateProxyBtn() {
-  const btn = document.getElementById('proxybtn');
-  if (!btn) return;
-  if (userProxy) {
-    btn.textContent = '⚙️ 프록시 ON';
-    btn.style.borderColor = 'rgba(46,204,113,.5)';
-    btn.style.color = 'var(--live)';
-  } else {
-    btn.textContent = '⚙️ 프록시';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-  }
+  const btns = [document.getElementById('proxybtn'), document.getElementById('mob-proxybtn')];
+  btns.forEach(btn => {
+    if (!btn) return;
+    if (userProxy) {
+      btn.textContent = '⚙️ 프록시 ON';
+      btn.style.color = 'var(--live)';
+    } else {
+      btn.textContent = '⚙️ 프록시';
+      btn.style.color = '';
+    }
+  });
 }
 
 // 모달 내 상태 표시 업데이트
@@ -1153,8 +1208,11 @@ function goHome(){
 let isDark = localStorage.getItem('hps_theme') !== 'light';
 function applyTheme(){
   document.body.classList.toggle('light', !isDark);
+  const icon = isDark ? '🌙' : '☀️';
   const btn = document.getElementById('themebtn');
-  if(btn) btn.textContent = isDark ? '🌙' : '☀️';
+  if(btn) btn.textContent = icon;
+  const mobBtn = document.getElementById('mob-themebtn');
+  if(mobBtn) mobBtn.textContent = icon + ' 테마';
 }
 function toggleTheme(){
   isDark = !isDark;
