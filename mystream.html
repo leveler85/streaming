@@ -240,6 +240,27 @@ select option{background:var(--surface2);}
 .proxy-banner.warn{background:rgba(180,90,0,.97);}
 .proxy-banner.ok{background:rgba(30,130,60,.97);}
 .proxy-banner a{color:#fff;text-decoration:underline;cursor:pointer;}
+
+/* LIGHT THEME */
+body.light {
+  --bg:#f0f0f5; --surface:#ffffff; --surface2:#f5f5fa; --surface3:#eaeaf2;
+  --border:#dcdce8; --border2:#c8c8d8;
+  --text:#18181f; --text2:#555570; --text3:#9999aa;
+}
+body.light header{background:rgba(240,240,245,.97);}
+
+/* DRAG HANDLE */
+.chi{touch-action:none;}
+.chi.drag-over{background:rgba(192,57,43,.18);border:1px dashed var(--accent);}
+.chi.dragging-item{opacity:.4;pointer-events:none;}
+.drag-handle{cursor:grab;color:var(--text3);font-size:14px;padding:3px 4px;line-height:1;flex-shrink:0;}
+.drag-handle:active{cursor:grabbing;}
+
+/* FULLSCREEN BUTTON */
+.pbox:-webkit-full-screen{border-radius:0;}
+.pbox:fullscreen{border-radius:0;}
+.fs-btn{position:absolute;bottom:8px;right:8px;z-index:10;background:rgba(0,0,0,.55);border:none;color:#fff;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:15px;line-height:1;transition:background .15s;backdrop-filter:blur(4px);}
+.fs-btn:hover{background:rgba(192,57,43,.8);}
 </style>
 </head>
 <body>
@@ -248,13 +269,14 @@ select option{background:var(--surface2);}
 
 <header>
   <button class="mobmenu" onclick="openSB()">☰</button>
-  <div class="logo">Hwang's<strong>PRIVATE STREAM</strong></div>
+  <div class="logo" onclick="goHome()" style="cursor:pointer" title="홈으로">Hwang's<strong>PRIVATE STREAM</strong></div>
   <div class="h-space"></div>
   <div class="live-dot"></div>
   <button class="btn btn-g btn-sm" onclick="openM('allsrc')">📋 전체소스</button>
   <button class="btn btn-g btn-sm" onclick="openM('srcsearch')">🔍 소스검색</button>
   <button class="btn btn-p btn-sm" onclick="openM('addch')">＋ 추가</button>
   <button class="btn btn-g btn-sm" id="proxybtn" onclick="openProxyModal()" title="HLS 프록시 설정">⚙️ 프록시</button>
+  <button class="btn btn-g btn-sm" id="themebtn" onclick="toggleTheme()" title="테마 전환">🌙</button>
 </header>
 
 <div class="app" id="app">
@@ -281,6 +303,7 @@ select option{background:var(--surface2);}
           <div id="ytp"></div>
           <iframe id="cif" style="display:none" allowfullscreen allow="autoplay; encrypted-media"></iframe>
           <div id="errp" style="display:none;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;background:#0d0d0d;padding:20px;text-align:center"></div>
+          <button class="fs-btn" id="fsbtn" onclick="toggleFullscreen()" title="전체화면">⛶</button>
         </div>
         <div class="mvbox" id="mvb"></div>
         <div class="pinfo" id="pinfo" style="display:none">
@@ -1056,6 +1079,7 @@ function renderSB(){
   let list=activeCat==='all'?chs:chs.filter(c=>c.cat===activeCat);
   if(!list.length){el.innerHTML='<div style="padding:12px 8px;font-size:12px;color:var(--text2)">채널이 없습니다</div>';return;}
   el.innerHTML=list.map(c=>chItem(c)).join('');
+  initDrag();
 }
 function renderFavs(){
   const el=document.getElementById('sbfav');
@@ -1066,7 +1090,8 @@ function renderFavs(){
 function chItem(c){
   const icon=c.type==='youtube'?'▶':c.type==='m3u'?'📡':'🔗';
   const isFav=favs.includes(c.id);
-  return `<div class="chi ${activeId===c.id?'on':''}" onclick='play(${sj(c)})'>
+  return `<div class="chi ${activeId===c.id?'on':''}" onclick='play(${sj(c)})' draggable="true" data-id="${c.id}">
+    <span class="drag-handle" onclick="event.stopPropagation()" title="드래그로 순서 변경">⠿</span>
     <div class="ch-ico ${c.type}">${icon}</div>
     <div class="ch-inf"><div class="ch-nm">${c.name}</div><div class="ch-mt">${isFav?'<span style="color:var(--fav)">★ </span>':''}${c.cat||c.type.toUpperCase()}</div></div>
     <div class="ch-acts">
@@ -1092,6 +1117,128 @@ function renderGrid(){
       </div>
     </div>`;
   }).join('');
+}
+
+// ── 홈으로 ──
+function goHome(){
+  stopPlayer();
+  activeId=null;curCh=null;
+  document.getElementById('ms').scrollTo({top:0,behavior:'smooth'});
+  renderSB();renderGrid();
+}
+
+// ── 테마 전환 ──
+let isDark = localStorage.getItem('hps_theme') !== 'light';
+function applyTheme(){
+  document.body.classList.toggle('light', !isDark);
+  const btn = document.getElementById('themebtn');
+  if(btn) btn.textContent = isDark ? '🌙' : '☀️';
+}
+function toggleTheme(){
+  isDark = !isDark;
+  localStorage.setItem('hps_theme', isDark ? 'dark' : 'light');
+  applyTheme();
+}
+applyTheme();
+
+// ── 전체화면 ──
+function toggleFullscreen(){
+  const box = document.getElementById('pbox');
+  const btn = document.getElementById('fsbtn');
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){
+    (box.requestFullscreen||box.webkitRequestFullscreen||box.mozRequestFullScreen).call(box);
+    if(btn) btn.textContent = '✕';
+  } else {
+    (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen).call(document);
+    if(btn) btn.textContent = '⛶';
+  }
+}
+document.addEventListener('fullscreenchange', ()=>{
+  const btn = document.getElementById('fsbtn');
+  if(btn) btn.textContent = document.fullscreenElement ? '✕' : '⛶';
+});
+document.addEventListener('webkitfullscreenchange', ()=>{
+  const btn = document.getElementById('fsbtn');
+  if(btn) btn.textContent = document.webkitFullscreenElement ? '✕' : '⛶';
+});
+
+// ── 채널 드래그 순서 변경 ──
+let dragSrcId = null;
+function initDrag(){
+  const el = document.getElementById('sbch');
+  if(!el) return;
+  el.addEventListener('dragstart', e => {
+    const item = e.target.closest('[data-id]');
+    if(!item) return;
+    dragSrcId = item.dataset.id;
+    setTimeout(()=>item.classList.add('dragging-item'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  el.addEventListener('dragend', e => {
+    document.querySelectorAll('.chi').forEach(i=>i.classList.remove('dragging-item','drag-over'));
+    dragSrcId = null;
+  });
+  el.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('[data-id]');
+    document.querySelectorAll('.chi').forEach(i=>i.classList.remove('drag-over'));
+    if(item && item.dataset.id !== dragSrcId) item.classList.add('drag-over');
+  });
+  el.addEventListener('drop', e => {
+    e.preventDefault();
+    const item = e.target.closest('[data-id]');
+    if(!item || !dragSrcId || item.dataset.id === dragSrcId) return;
+    const fromIdx = chs.findIndex(c=>String(c.id)===String(dragSrcId));
+    const toIdx   = chs.findIndex(c=>String(c.id)===String(item.dataset.id));
+    if(fromIdx < 0 || toIdx < 0) return;
+    const [moved] = chs.splice(fromIdx, 1);
+    chs.splice(toIdx, 0, moved);
+    save();
+    renderAll();
+    toast('✅ 순서 변경됨', 's');
+  });
+  // 터치 드래그 (모바일)
+  let touchItem=null, touchClone=null, touchFromIdx=-1;
+  el.addEventListener('touchstart', e=>{
+    const item=e.target.closest('.drag-handle');
+    if(!item) return;
+    const chi=item.closest('[data-id]');
+    if(!chi) return;
+    touchItem=chi;
+    touchFromIdx=chs.findIndex(c=>String(c.id)===String(chi.dataset.id));
+    touchClone=chi.cloneNode(true);
+    touchClone.style.cssText='position:fixed;opacity:.8;pointer-events:none;z-index:9999;width:'+chi.offsetWidth+'px;background:var(--surface2);border-radius:8px;border:1px solid var(--accent);';
+    document.body.appendChild(touchClone);
+  },{passive:true});
+  el.addEventListener('touchmove', e=>{
+    if(!touchClone) return;
+    e.preventDefault();
+    const t=e.touches[0];
+    touchClone.style.left=(t.clientX-touchClone.offsetWidth/2)+'px';
+    touchClone.style.top=(t.clientY-20)+'px';
+    const under=document.elementFromPoint(t.clientX,t.clientY);
+    const overItem=under&&under.closest('[data-id]');
+    document.querySelectorAll('.chi').forEach(i=>i.classList.remove('drag-over'));
+    if(overItem&&overItem!==touchItem) overItem.classList.add('drag-over');
+  },{passive:false});
+  el.addEventListener('touchend', e=>{
+    if(!touchClone){return;}
+    touchClone.remove();touchClone=null;
+    const t=e.changedTouches[0];
+    const under=document.elementFromPoint(t.clientX,t.clientY);
+    const overItem=under&&under.closest('[data-id]');
+    document.querySelectorAll('.chi').forEach(i=>i.classList.remove('drag-over'));
+    if(overItem&&touchFromIdx>=0&&overItem!==touchItem){
+      const toIdx=chs.findIndex(c=>String(c.id)===String(overItem.dataset.id));
+      if(toIdx>=0){
+        const [moved]=chs.splice(touchFromIdx,1);
+        chs.splice(toIdx,0,moved);
+        save();renderAll();toast('✅ 순서 변경됨','s');
+      }
+    }
+    touchItem=null;touchFromIdx=-1;
+  });
 }
 
 // ── HELPERS ──
