@@ -616,61 +616,108 @@ function playYT(vid){
 let userProxy = localStorage.getItem('hps_proxy') || '';
 
 function getProxyUrl(url) {
-  // 1) 이미 HTTPS면 프록시 불필요
-  if (url.startsWith('https://')) return url;
-  // 2) HTTP → 사용자 지정 Cloudflare Worker 프록시 사용
+  if (url.startsWith('https://')) return url;  // HTTPS는 프록시 불필요
   if (userProxy) return userProxy + '/?url=' + encodeURIComponent(url);
-  // 3) 프록시 미설정: 그대로 시도 (localhost 등에선 작동)
-  return url;
+  return url;  // 프록시 없으면 그대로 (localhost용)
 }
 
-function saveProxy() {
-  const val = document.getElementById('proxyInput').value.trim().replace(/\/$/, '');
-  userProxy = val;
-  if (val) localStorage.setItem('hps_proxy', val);
-  else localStorage.removeItem('hps_proxy');
-  updateProxyBtn();
-  closeM('proxy');
-  toast(val ? '✅ 프록시 저장됨' : '프록시 초기화됨', 's');
+// 프록시 모달 열기
+function openProxyModal() {
+  document.getElementById('proxyInput').value = userProxy;
+  updateProxyStatus();
+  openM('proxy');
 }
+
+// 저장
+function saveProxy() {
+  const val = document.getElementById('proxyInput').value.trim().replace(/\/+$/, '');
+  userProxy = val;
+  if (val) {
+    localStorage.setItem('hps_proxy', val);
+  } else {
+    localStorage.removeItem('hps_proxy');
+  }
+  updateProxyBtn();
+  updateProxyStatus();
+  closeM('proxy');
+  toast(val ? '✅ 프록시 저장됨' : '프록시가 삭제됐습니다', val ? 's' : '');
+}
+
+// 삭제
 function clearProxy() {
-  document.getElementById('proxyInput').value = '';
   userProxy = '';
   localStorage.removeItem('hps_proxy');
+  document.getElementById('proxyInput').value = '';
+  document.getElementById('proxyTestResult').style.display = 'none';
   updateProxyBtn();
-  toast('프록시 초기화됨');
+  updateProxyStatus();
+  toast('🗑 프록시 삭제됨');
 }
+
+// 헤더 버튼 상태 업데이트
 function updateProxyBtn() {
   const btn = document.getElementById('proxybtn');
   if (!btn) return;
-  btn.textContent = userProxy ? '⚙️ 프록시 ON' : '⚙️ 프록시';
-  btn.style.borderColor = userProxy ? 'rgba(46,204,113,.5)' : '';
-  btn.style.color = userProxy ? 'var(--live)' : '';
+  if (userProxy) {
+    btn.textContent = '⚙️ 프록시 ON';
+    btn.style.borderColor = 'rgba(46,204,113,.5)';
+    btn.style.color = 'var(--live)';
+  } else {
+    btn.textContent = '⚙️ 프록시';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }
 }
-function openProxyModal() {
-  document.getElementById('proxyInput').value = userProxy;
-  openM('proxy');
+
+// 모달 내 상태 표시 업데이트
+function updateProxyStatus() {
+  const dot = document.getElementById('proxy-status-dot');
+  const txt = document.getElementById('proxy-status-text');
+  if (!dot || !txt) return;
+  if (userProxy) {
+    dot.style.background = 'var(--live)';
+    txt.style.color = 'var(--live)';
+    txt.textContent = '✅ 활성 — ' + userProxy;
+  } else {
+    dot.style.background = 'var(--accent)';
+    txt.style.color = 'var(--text2)';
+    txt.textContent = '⚠️ 미설정 — HTTP 스트림 재생 불가';
+  }
 }
+
+// 연결 테스트
 async function testProxy() {
-  const val = document.getElementById('proxyInput').value.trim().replace(/\/$/, '');
+  const val = document.getElementById('proxyInput').value.trim().replace(/\/+$/, '');
   const res = document.getElementById('proxyTestResult');
   res.style.display = 'block';
   res.style.borderColor = 'var(--border2)';
-  res.textContent = '🔄 테스트 중...';
-  if (!val) { res.textContent = '❌ 프록시 URL을 먼저 입력하세요.'; return; }
-  const testUrl = 'http://103.197.59.107:5002/gd03.m3u8?token=guoziyun&gid=gd03&channel=zhongying';
+  res.innerHTML = '🔄 테스트 중...';
+  if (!val) {
+    res.style.borderColor = 'rgba(192,57,43,.4)';
+    res.innerHTML = '❌ URL을 먼저 입력하세요';
+    return;
+  }
+  const testUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
   try {
-    const resp = await fetch(val + '/?url=' + encodeURIComponent(testUrl), { signal: AbortSignal.timeout(8000) });
+    const resp = await fetch(val + '/?url=' + encodeURIComponent(testUrl), {
+      signal: AbortSignal.timeout(7000)
+    });
     if (resp.ok) {
-      res.style.borderColor = 'rgba(46,204,113,.4)';
-      res.textContent = '✅ 연결 성공! 프록시가 정상 동작합니다.';
+      const text = await resp.text();
+      if (text.includes('#EXTM3U') || text.includes('#EXT')) {
+        res.style.borderColor = 'rgba(46,204,113,.4)';
+        res.innerHTML = '✅ 연결 성공! 프록시가 정상 동작합니다.<br><span style="color:var(--text3)">저장 버튼을 눌러 적용하세요.</span>';
+      } else {
+        res.style.borderColor = 'rgba(245,158,11,.4)';
+        res.innerHTML = '⚠️ 응답은 왔지만 m3u8 형식이 아닙니다.<br>Worker 코드가 올바른지 확인하세요.';
+      }
     } else {
       res.style.borderColor = 'rgba(192,57,43,.4)';
-      res.textContent = `⚠️ 응답 코드 ${resp.status} — 프록시가 응답했지만 스트림 접근에 실패했습니다.`;
+      res.innerHTML = `❌ HTTP ${resp.status} 오류 — Worker URL을 확인하세요`;
     }
   } catch (e) {
     res.style.borderColor = 'rgba(192,57,43,.4)';
-    res.textContent = '❌ 연결 실패: ' + e.message;
+    res.innerHTML = '❌ 연결 실패: ' + e.message;
   }
 }
 
@@ -986,37 +1033,47 @@ function toast(msg,t=''){
 document.getElementById('thint').textContent=HINTS['youtube'];
 if(userProxy) document.getElementById('proxyInput').value=userProxy;
 updateProxyBtn();
+updateProxyStatus();
 renderAll();
 </script>
 
 <!-- ═══ 프록시 설정 모달 ═══ -->
 <div class="overlay" id="m-proxy">
-  <div class="modal" style="max-width:520px">
-    <div class="mhead"><div class="mtitle">⚙️ HLS 프록시 설정</div><button class="mclose" onclick="closeM('proxy')">✕</button></div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.9;margin-bottom:14px">
-      HTTP 스트림을 <strong style="color:var(--text)">HTTPS GitHub Pages</strong>에서 재생하려면 CORS/Mixed Content 우회 프록시가 필요합니다.<br>
-      Cloudflare Workers 무료 계정으로 직접 배포하면 가장 안정적입니다.
+  <div class="modal" style="max-width:500px">
+    <div class="mhead">
+      <div class="mtitle">⚙️ CORS 프록시 설정</div>
+      <button class="mclose" onclick="closeM('proxy')">✕</button>
     </div>
+
+    <!-- 현재 상태 -->
+    <div id="proxy-status" style="display:flex;align-items:center;gap:8px;padding:10px 13px;border-radius:8px;margin-bottom:14px;font-size:12px;background:var(--surface2);border:1px solid var(--border2)">
+      <span id="proxy-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0"></span>
+      <span id="proxy-status-text" style="color:var(--text2)">프록시 미설정 — HTTP 스트림 재생 불가</span>
+    </div>
+
+    <!-- 입력 -->
     <div class="fg">
-      <label>프록시 URL <span style="color:var(--live);font-weight:700">*</span></label>
-      <input type="text" id="proxyInput" placeholder="https://your-worker.workers.dev" />
-      <div style="font-size:10px;color:var(--text2);margin-top:4px">예: https://myproxy.yourname.workers.dev &nbsp;|&nbsp; 뒤에 슬래시(/) 없이 입력</div>
+      <label>프록시 URL</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="proxyInput" placeholder="https://my.leveler2.workers.dev" style="flex:1"/>
+        <button class="btn btn-g btn-sm" onclick="testProxy()" style="white-space:nowrap">🔍 테스트</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:5px">끝에 슬래시(/) 없이 입력 · localStorage에 저장됨</div>
     </div>
-    <div style="background:var(--surface2);border-radius:8px;padding:11px 13px;font-size:11px;line-height:2;border:1px solid var(--border2);margin-bottom:12px">
-      <div style="font-weight:700;color:var(--text);margin-bottom:4px">🚀 Cloudflare Worker 5분 배포 방법</div>
-      <div>1. <a href="https://workers.cloudflare.com" target="_blank" style="color:var(--m3u)">workers.cloudflare.com</a> 접속 → 무료 계정 생성</div>
-      <div>2. <strong>Create Worker</strong> 클릭 → 코드 전체 삭제</div>
-      <div>3. 제공된 <code style="background:var(--surface3);padding:1px 5px;border-radius:3px">cf-worker-proxy.js</code> 내용을 붙여넣기</div>
-      <div>4. <strong>Save and Deploy</strong> → 생성된 URL을 위에 입력</div>
-    </div>
-    <div id="proxyTestResult" style="display:none;margin-bottom:10px;font-size:11px;padding:8px 11px;border-radius:7px;background:var(--surface2)"></div>
-    <div class="mfoot">
-      <button class="btn btn-g" onclick="testProxy()">🔍 연결 테스트</button>
-      <button class="btn btn-g" onclick="clearProxy()">초기화</button>
-      <button class="btn btn-p" onclick="saveProxy()">저장</button>
+
+    <!-- 테스트 결과 -->
+    <div id="proxyTestResult" style="display:none;margin-bottom:12px;font-size:11px;padding:9px 12px;border-radius:7px;background:var(--surface2);border:1px solid var(--border2);line-height:1.7"></div>
+
+    <!-- 버튼 -->
+    <div class="mfoot" style="justify-content:space-between">
+      <button class="btn btn-g btn-sm" onclick="clearProxy()" style="color:var(--accent2);border-color:rgba(192,57,43,.3)">🗑 프록시 삭제</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-g" onclick="closeM('proxy')">취소</button>
+        <button class="btn btn-p" onclick="saveProxy()">💾 저장</button>
+      </div>
     </div>
   </div>
 </div>
-
+</div>
 </body>
 </html>
