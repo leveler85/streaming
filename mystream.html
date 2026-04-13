@@ -9,19 +9,49 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Hwang's Private Stream</title>
-<script>
-// ── 버전 캐시 강제 무효화 ──
-// 이 값을 바꿀 때마다 모바일 포함 모든 브라우저가 강제 새로고침됩니다
-const APP_VERSION = '20260224-001';
-const storedVer = sessionStorage.getItem('hps_ver');
-if (storedVer !== APP_VERSION) {
-  sessionStorage.setItem('hps_ver', APP_VERSION);
-  // 캐시 완전 무시하고 서버에서 재요청
-  if (storedVer !== null) {
-    // 이미 한 번 방문한 적 있는데 버전이 다름 → 강제 새로고침
-    location.reload(true);
-  }
-}
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23c0392b'/%3E%3Crect x='15' y='22' width='70' height='44' rx='5' fill='%230d0d14'/%3E%3Crect x='18' y='25' width='64' height='38' rx='3' fill='%23000'/%3E%3Ccircle cx='25' cy='44' r='3' fill='%232ecc71'/%3E%3Crect x='32' y='39' width='22' height='2.5' rx='1.2' fill='%23555570'/%3E%3Crect x='32' y='44' width='16' height='2.5' rx='1.2' fill='%23555570'/%3E%3Crect x='32' y='49' width='20' height='2.5' rx='1.2' fill='%23555570'/%3E%3Crect x='38' y='66' width='24' height='5' rx='2' fill='%230d0d14'/%3E%3Crect x='30' y='70' width='40' height='3' rx='1.5' fill='%230d0d14'/%3E%3C/svg%3E">
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js';
+import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyBwfPw-xf-QCq1dLpU2RGB9tZUE0LqZQ1Y",
+  authDomain:        "streaming-52dfe.firebaseapp.com",
+  projectId:         "streaming-52dfe",
+  storageBucket:     "streaming-52dfe.firebasestorage.app",
+  messagingSenderId: "545266289527",
+  appId:             "1:545266289527:web:0f93db6aa6c0d9f386ef72"
+};
+
+window._fbReady = false;
+window._fbAuth  = null;
+window._fbDb    = null;
+window._fbUser  = null;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  window._fbAuth  = getAuth(app);
+  window._fbDb    = getFirestore(app);
+  window._fbReady = true;
+  onAuthStateChanged(window._fbAuth, user => {
+    window._fbUser = user;
+    if (typeof window._fbAuthChanged === 'function') window._fbAuthChanged(user);
+  });
+} catch(e) { console.warn('Firebase init error:', e); }
+
+window.fbSignIn = async () => {
+  const result = await signInWithPopup(window._fbAuth, new GoogleAuthProvider());
+  return result.user;
+};
+window.fbSignOut = async () => { if (window._fbAuth) await signOut(window._fbAuth); };
+window.fbSave = async (data) => {
+  await setDoc(doc(window._fbDb, 'users', window._fbUser.uid), data);
+};
+window.fbLoad = async () => {
+  const snap = await getDoc(doc(window._fbDb, 'users', window._fbUser.uid));
+  return snap.exists() ? snap.data() : null;
+};
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js"></script>
@@ -1321,13 +1351,15 @@ function initDrag(){
   });
 }
 
-// ── JSON 백업 / 복원 ──
+// ── 동기화 (Firebase + JSON 백업) ──
+window._fbAuthChanged = function(user) { fbUpdateUI(user); };
+
 function openSyncModal() {
+  fbUpdateUI(window._fbUser);
   document.getElementById('import-log').style.display = 'none';
   openM('sync');
-  // 드래그앤드롭 초기화 (모달이 DOM에 렌더된 후)
   const idz = document.getElementById('import-dz');
-  if(idz && !idz._dzinit) {
+  if (idz && !idz._dzinit) {
     idz._dzinit = true;
     idz.addEventListener('dragover', e => { e.preventDefault(); idz.classList.add('dzo'); });
     idz.addEventListener('dragleave', () => idz.classList.remove('dzo'));
@@ -1335,23 +1367,94 @@ function openSyncModal() {
   }
 }
 
+function fbUpdateUI(user) {
+  const loginArea  = document.getElementById('fb-login-area');
+  const loggedArea = document.getElementById('fb-logged-area');
+  const nameEl     = document.getElementById('fb-name');
+  const emailEl    = document.getElementById('fb-email');
+  const avatarEl   = document.getElementById('fb-avatar');
+  const syncBtn    = document.getElementById('syncbtn');
+  const mobSyncBtn = document.getElementById('mob-syncbtn');
+
+  if (user) {
+    if (loginArea)  loginArea.style.display  = 'none';
+    if (loggedArea) loggedArea.style.display = 'flex';
+    if (nameEl)     nameEl.textContent  = user.displayName || '사용자';
+    if (emailEl)    emailEl.textContent = user.email || '';
+    if (avatarEl && user.photoURL) { avatarEl.src = user.photoURL; avatarEl.style.display = 'block'; }
+    const label = '☁️ ' + (user.displayName?.split(' ')[0] || '동기화');
+    if (syncBtn)    { syncBtn.textContent = label; syncBtn.style.color = 'var(--live)'; }
+    if (mobSyncBtn) { mobSyncBtn.textContent = label; mobSyncBtn.style.color = 'var(--live)'; }
+  } else {
+    if (loginArea)  loginArea.style.display  = 'block';
+    if (loggedArea) loggedArea.style.display = 'none';
+    if (syncBtn)    { syncBtn.textContent = '💾 백업'; syncBtn.style.color = ''; }
+    if (mobSyncBtn) { mobSyncBtn.textContent = '💾 백업'; mobSyncBtn.style.color = ''; }
+  }
+}
+
+function fbSyncLog(msg, ok = true) {
+  const el = document.getElementById('fb-log');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = ok ? 'var(--live)' : 'var(--accent)';
+  el.textContent = msg;
+}
+
+async function fbLogin() {
+  if (!window._fbReady) { openM('fbcfg'); return; }
+  try {
+    fbSyncLog('🔄 로그인 중...');
+    await window.fbSignIn();
+    fbSyncLog('✅ 로그인 성공!');
+    toast('✅ Google 로그인 완료', 's');
+  } catch(e) { fbSyncLog('❌ ' + e.message, false); }
+}
+
+async function fbLogout() {
+  await window.fbSignOut();
+  fbUpdateUI(null);
+  toast('로그아웃됨');
+}
+
+async function fbPush() {
+  if (!window._fbUser) { toast('먼저 Google 로그인하세요', 'e'); return; }
+  fbSyncLog('🔄 저장 중...');
+  try {
+    await window.fbSave({ chs, favs, pubs, updatedAt: new Date().toISOString() });
+    fbSyncLog('✅ 저장 완료 — ' + new Date().toLocaleTimeString('ko-KR'));
+    toast('☁️ 클라우드에 저장됨', 's');
+  } catch(e) { fbSyncLog('❌ ' + e.message, false); }
+}
+
+async function fbPull() {
+  if (!window._fbUser) { toast('먼저 Google 로그인하세요', 'e'); return; }
+  fbSyncLog('🔄 불러오는 중...');
+  try {
+    const data = await window.fbLoad();
+    if (!data) { fbSyncLog('저장된 데이터가 없습니다.', false); return; }
+    if (data.chs)  chs  = data.chs;
+    if (data.favs) favs = data.favs;
+    if (data.pubs) { pubs = data.pubs; savePubs(); }
+    save(); renderAll();
+    const dt = data.updatedAt ? new Date(data.updatedAt).toLocaleString('ko-KR') : '';
+    fbSyncLog(`✅ ${chs.length}개 채널 불러옴${dt ? ' · ' + dt : ''}`);
+    toast(`☁️ ${chs.length}개 채널 불러옴`, 's');
+  } catch(e) { fbSyncLog('❌ ' + e.message, false); }
+}
+
+// JSON 내보내기
 function exportJSON() {
-  const data = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    chs,
-    favs,
-    pubs
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const data = { version: 1, exportedAt: new Date().toISOString(), chs, favs, pubs };
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'mystream_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  a.download = 'mystream_backup_' + new Date().toISOString().slice(0, 10) + '.json';
   a.click();
   URL.revokeObjectURL(a.href);
   toast('✅ JSON 파일로 저장됨', 's');
 }
 
+// JSON 불러오기
 function importJSON(file) {
   if (!file) return;
   const r = new FileReader();
@@ -1359,21 +1462,23 @@ function importJSON(file) {
     try {
       const data = JSON.parse(e.target.result);
       if (!Array.isArray(data.chs)) { toast('❌ 올바른 백업 파일이 아닙니다', 'e'); return; }
-      if (!confirm(`채널 ${data.chs.length}개를 불러옵니다.\n현재 채널 목록이 덮어써집니다. 계속할까요?`)) return;
+      if (!confirm(`채널 ${data.chs.length}개를 불러옵니다.\n현재 목록이 덮어써집니다. 계속할까요?`)) return;
       chs = data.chs;
       if (Array.isArray(data.favs)) favs = data.favs;
       if (Array.isArray(data.pubs)) { pubs = data.pubs; savePubs(); }
       save(); renderAll();
       const dt = data.exportedAt ? new Date(data.exportedAt).toLocaleString('ko-KR') : '알수없음';
-      document.getElementById('import-log').textContent = `✅ ${chs.length}개 채널 불러옴 (백업일시: ${dt})`;
-      document.getElementById('import-log').style.color = 'var(--live)';
+      const log = document.getElementById('import-log');
+      log.style.display = 'block';
+      log.style.color = 'var(--live)';
+      log.textContent = `✅ ${chs.length}개 채널 불러옴 (백업일시: ${dt})`;
       toast(`✅ ${chs.length}개 채널 불러옴`, 's');
-    } catch(err) {
-      toast('❌ 파일 파싱 오류: ' + err.message, 'e');
-    }
+    } catch(err) { toast('❌ 파일 파싱 오류: ' + err.message, 'e'); }
   };
   r.readAsText(file);
 }
+
+setTimeout(() => fbUpdateUI(window._fbUser), 600);
 
 // ── HELPERS ──
 function sj(o){ return JSON.stringify(o).replace(/'/g,"&#39;"); }
@@ -1383,40 +1488,58 @@ updateProxyBtn();
 renderAll();
 </script>
 
-<!-- ═══ JSON 백업 / 복원 모달 ═══ -->
+<!-- ═══ 동기화 모달 ═══ -->
 <div class="overlay" id="m-sync">
-  <div class="modal" style="max-width:420px">
+  <div class="modal" style="max-width:440px">
     <div class="mhead">
-      <div class="mtitle">💾 백업 / 복원</div>
+      <div class="mtitle">☁️ 동기화 / 백업</div>
       <button class="mclose" onclick="closeM('sync')">✕</button>
     </div>
 
-    <!-- 내보내기 -->
-    <div style="margin-bottom:18px">
-      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📤 내보내기 (Export)</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--m3u)">
-        현재 채널 목록·즐겨찾기·공개소스를 <strong style="color:var(--text)">JSON 파일</strong>로 저장합니다.<br>
-        파일을 옮기면 다른 PC에서도 그대로 복원 가능합니다.
+    <!-- ① Firebase 클라우드 동기화 -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">☁️ Google 계정 동기화 (기기간 자동)</div>
+
+      <!-- 로그인 전 -->
+      <div id="fb-login-area">
+        <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--m3u)">
+          Google 로그인 시 모든 기기에서 채널 목록이 동기화됩니다.
+        </div>
+        <button onclick="fbLogin()" style="display:flex;align-items:center;gap:8px;padding:10px 18px;background:#fff;color:#333;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;margin:0 auto">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style="width:18px;height:18px"> Google로 로그인
+        </button>
       </div>
-      <button onclick="exportJSON()" class="btn btn-p" style="width:100%;justify-content:center">⬇ JSON 파일로 저장</button>
+
+      <!-- 로그인 후 -->
+      <div id="fb-logged-area" style="display:none;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border2)">
+          <img id="fb-avatar" src="" style="width:34px;height:34px;border-radius:50%;display:none">
+          <div style="flex:1">
+            <div id="fb-name" style="font-size:13px;font-weight:600"></div>
+            <div id="fb-email" style="font-size:11px;color:var(--text2)"></div>
+          </div>
+          <button onclick="fbLogout()" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;font-family:inherit">로그아웃</button>
+        </div>
+        <div id="fb-log" style="display:none;font-size:11px;padding:8px 11px;background:var(--surface2);border-radius:7px;border-left:3px solid var(--live)"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
+          <button onclick="fbPull()" class="btn btn-g" style="justify-content:center">⬇ 불러오기</button>
+          <button onclick="fbPush()" class="btn btn-p" style="justify-content:center">⬆ 저장하기</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);text-align:center;line-height:1.6">저장하기 → 현재 목록을 클라우드 업로드 &nbsp;|&nbsp; 불러오기 → 클라우드에서 이 기기로</div>
+      </div>
     </div>
 
-    <div style="border-top:1px solid var(--border);margin-bottom:18px"></div>
+    <div style="border-top:1px solid var(--border);margin-bottom:16px"></div>
 
-    <!-- 불러오기 -->
+    <!-- ② JSON 로컬 백업 -->
     <div>
-      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📥 불러오기 (Import)</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
-        ⚠️ 불러오기 시 <strong style="color:var(--accent)">현재 목록을 덮어씁니다.</strong><br>
-        먼저 내보내기로 현재 상태를 백업하세요.
-      </div>
-      <div class="dz" id="import-dz" onclick="document.getElementById('importfile').click()" style="margin-bottom:8px">
-        <div class="dz-icon">📂</div>
-        <div style="font-size:12px">JSON 파일을 클릭하거나 드래그하여 불러오기</div>
-        <div style="font-size:10px;opacity:.6;margin-top:3px">mystream_backup_*.json</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📁 로컬 JSON 백업</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px">
+        <button onclick="exportJSON()" class="btn btn-g" style="justify-content:center">⬇ JSON 저장</button>
+        <button onclick="document.getElementById('importfile').click()" class="btn btn-g" style="justify-content:center">⬆ JSON 불러오기</button>
       </div>
       <input type="file" id="importfile" accept=".json" style="display:none" onchange="importJSON(this.files[0])">
-      <div id="import-log" style="font-size:11px;padding:7px 10px;display:none;border-radius:6px;background:var(--surface2)"></div>
+      <div id="import-log" style="display:none;font-size:11px;padding:7px 10px;border-radius:6px;background:var(--surface2)"></div>
     </div>
 
     <div class="mfoot"><button class="btn btn-g" onclick="closeM('sync')">닫기</button></div>
