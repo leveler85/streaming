@@ -99,13 +99,13 @@ header{position:fixed;top:0;left:0;right:0;z-index:300;height:var(--hh);display:
 .sb-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
 .stab{flex:1;padding:10px 4px;text-align:center;font-size:11px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none;}
 .stab.on{color:var(--accent);border-bottom-color:var(--accent);}
-.spanel{display:none;flex-direction:column;flex:1;overflow-y:auto;overflow-x:hidden;}
+.spanel{display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0;}
 .spanel.on{display:flex;}
 .cat-bar{display:flex;gap:5px;padding:8px 10px;overflow-x:auto;flex-shrink:0;border-bottom:1px solid var(--border);}
 .cat-bar::-webkit-scrollbar{height:0;}
 .cat-chip{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid var(--border2);color:var(--text2);background:transparent;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;}
 .cat-chip.on{background:rgba(192,57,43,.15);border-color:var(--accent);color:var(--accent);}
-.ch-list{padding:6px;flex:1;}
+.ch-list{padding:6px;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 .chi{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:8px;cursor:pointer;transition:background .12s;position:relative;margin-bottom:1px;}
 .chi:hover{background:var(--surface2);}
 .chi.on{background:rgba(192,57,43,.1);}
@@ -279,7 +279,7 @@ select option{background:var(--surface2);}
   .mobmenu{display:block;}
   .resizer{display:none;}
   header{gap:7px;padding:0 10px;}
-  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:260;transform:translateX(-100%);padding-top:var(--hh);width:80vw!important;min-width:unset!important;max-width:unset!important;transition:transform .28s cubic-bezier(.4,0,.2,1);}
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:260;transform:translateX(-100%);padding-top:var(--hh);width:80vw!important;min-width:unset!important;max-width:unset!important;transition:transform .28s cubic-bezier(.4,0,.2,1);height:100vh;height:100dvh;}
   .sidebar.open{transform:translateX(0);}
   .sbback.open{display:block;}
   .main{width:100%;min-width:0;}
